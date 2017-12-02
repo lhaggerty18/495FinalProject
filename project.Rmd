@@ -1,0 +1,24 @@
+---
+title: "project"
+author: "Jeff Lancaster, Tasheena Narraidoo, and Luke Haggerty"
+date: "December 2, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Group Evaluation Metrics:
+  Background/Context
+  Context in Slides
+  Commentary on Exploratory Data Analysis: Visualization and Tables
+  Explain Pitfalls and issues that we've run into
+  Structure and Orgainzation of talk
+  
+  
+#Exploratory Data Analysis
+```{r}
+
+```
+
