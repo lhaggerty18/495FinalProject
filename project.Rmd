@@ -7,6 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(ggmap)
 ```
 
 Group Evaluation Metrics:
@@ -19,6 +22,46 @@ Group Evaluation Metrics:
   
 #Exploratory Data Analysis
 ```{r}
+test<-read_csv("./Data/test.csv")
+train<-read_csv("./Data/train.csv")
+colnames(test) #unique var is only ID
+colnames(train) #unique vars are Category, Descript, Resolution
 
+train <- train %>%
+  mutate(Hour  = factor(hour(Dates), levels=0:23), Dates = as.POSIXct(round(Dates, units = "days")), 
+         DayOfWeek = factor(DayOfWeek, levels=c("Monday","Tuesday","Wednesday","Thursday",
+                                                "Friday","Saturday","Sunday")))
+
+test <- test %>%
+  mutate(Hour  = factor(hour(Dates), levels=0:23), Dates = as.POSIXct(round(Dates, units = "days")), 
+         DayOfWeek = factor(DayOfWeek, levels=c("Monday","Tuesday","Wednesday","Thursday",
+                                                "Friday","Saturday","Sunday")))
+
+
+#Sorting into Crime Types
+table(train$Category)
+
+violent_crime <- c("ASSAULT","SEX OFFENSES FORCIBLE","ROBBERY")
+property_crime<-c("BURGLARY","LARCENY/THEFT","VEHICLE THEFT","ARSON")
+
+
+train$category_general <- ifelse(train$Category %in% violent_crime, "VIOLENT", ifelse(train$Category %in% property_crime, "PROPERTY", "OTHER"))
+train$category_general<-as.factor(train$category_general)
+```
+
+
+```{r}
+sfMap<-get_map(location="sanfrancisco", zoom= 12, source="google")
+train2<-train[1:1000,]
+ggmap(sfMap,extent="normal") +
+  stat_density_2d(data=train2,
+                  aes(x=X,y=Y,fill=category_general),size=.01,bins=16,geom="polygon")+
+  scale_fill_gradient(low="green",high="red")
+```
+
+
+```{r}
+ggmap(chicago) + geom_tile(data = locationCrimes, aes(x = long, y = lat, alpha = Frequency),
+                           fill = 'red') + theme(axis.title.y = element_blank(), axis.title.x = element_blank())
 ```
 
