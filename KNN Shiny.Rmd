@@ -1,0 +1,102 @@
+---
+title: "k-Nearest Neighbors"
+author: 
+date: 
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(class)
+library(ggmap)
+library(rgdal)
+```
+
+
+
+
+
+```{r, echo=FALSE, message=FALSE}
+# Load data
+
+train <- read_csv("train.csv")
+
+train <- train %>% 
+  sample_n(2000)
+
+train <- train %>%
+  tbl_df() %>% 
+  select(X, Y, Resolution)
+
+train <- filter(train, Resolution != "NONE")
+train <- filter(train, Resolution !="COMPLAINANT REFUSES TO PROSECUTE")
+train <- filter(train, Resolution !="DISTRICT ATTORNEY REFUSES TO PROSECUTE")
+train <- filter(train, Resolution !="LOCATED")
+train <- filter(train, Resolution !="UNFOUNDED")
+train <- filter(train, Resolution !="JUVENILE DIVERTED")
+train <- filter(train, Resolution !="PROSECUTED BY AN OUTSIDE AGENCY")
+train <- filter(train, Resolution !="PSYCHOPATHIC CASE")
+
+```
+
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Define training/test sets
+train_input <- train %>%
+  select(X, Y)
+test <- expand.grid(
+  X = seq(-122.53, -122.35, by=0.001),
+  Y = seq(37.708, 37.82, by=0.0001)
+) %>% 
+  tbl_df()
+# Assign categorical outcome variable:
+classifications <- train$Resolution
+```
+
+
+
+
+
+
+```{r eruptions, echo=FALSE, fig.width=10}
+inputPanel(
+  sliderInput("k", label = "k: # of Nearest Neighbors", min = 1, max = nrow(train), value = 3, step = 1)
+)
+
+renderPlot({
+  test_input <- test %>% 
+    select(X, Y)
+  
+
+  # Fit model:
+  model_knn <- 
+    class::knn(train=train_input, test=test_input, cl=classifications, k = input$k, prob=TRUE)
+  
+  # Add predictions and probabilities to test set
+  test <- test %>% 
+    mutate(
+      Resolution = model_knn,
+      Probability = attr(model_knn, "prob")
+    )
+  
+  set.seed(76)
+  
+ # lat <- c(min(test$Y),max(test$Y))                
+ # lon <- c(min(test$X),max(test$X)) 
+  
+ # sfMap<-get_map(location=c(lon = mean(lon), lat = mean(lat)), zoom= 12, source="google")
+ # ggmap(sfMap,extent='device') + scale_fill_brewer(palette = "Set1") + geom_tile(data =test, aes(x=X, y=Y, fill=Resolution, alpha=Probability))
+ 
+  ggplot(NULL, aes(x=X, y=Y)) + 
+    scale_fill_brewer(palette = "Set1") + 
+    geom_tile(data=test, aes(fill=Resolution, alpha=Probability)) +
+    labs(title=paste("k =", input$k, "Nearest Neighbors")) + 
+    geom_jitter(data=train, aes(fill=Resolution), size=3, shape=21, stroke=0.5) + theme(panel.background = element_blank())
+  
+})
+```
+
