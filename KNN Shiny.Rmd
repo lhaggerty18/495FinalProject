@@ -27,11 +27,19 @@ train <- read_csv("train.csv")
 train <- train %>% 
   sample_n(1000)
 
+
+violent_crime <- c("ASSAULT","SEX OFFENSES FORCIBLE","ROBBERY")
+property_crime<-c("BURGLARY","LARCENY/THEFT","VEHICLE THEFT","ARSON")
+
+
+train$category_general <- ifelse(train$Category %in% violent_crime, "VIOLENT", ifelse(train$Category %in% property_crime, "PROPERTY", "OTHER"))
+train$category_general<-as.factor(train$category_general)
+
 train <- train %>%
   tbl_df() %>% 
-  select(X, Y, Resolution)
+  select(X, Y, category_general)
 
-train <- dplyr::filter(train, Resolution != "NONE")
+
 ```
 
 
@@ -47,7 +55,7 @@ test <- expand.grid(
 ) %>% 
   tbl_df()
 # Assign categorical outcome variable:
-classifications <- train$Resolution
+classifications <- train$category_general
 ```
 
 
@@ -72,23 +80,23 @@ renderPlot({
   # Add predictions and probabilities to test set
   test <- test %>% 
     mutate(
-      Resolution = model_knn,
+      category_general = model_knn,
       Probability = attr(model_knn, "prob")
     )
   
-  set.seed(76)
+  set.seed(14)
   
  lat <- c(min(test$Y),max(test$Y))                
  lon <- c(min(test$X),max(test$X)) 
   
  sfMap<-get_map(location=c(lon = mean(lon), lat = mean(lat)), zoom= 12, source="google")
  
-   ggmap(sfMap, extent= "device" ) + scale_fill_brewer(palette = "Set3") +
-        geom_tile(data = test, aes(x = X, y = Y, fill=Resolution, alpha = Probability)) + 
-        scale_alpha(range = c(0, 0.8)) + labs(title=paste("k =", input$k, "Nearest Neighbors")) + 
-    geom_jitter(data=train, aes(x=X, y=Y, fill=Resolution), size=3, shape=21, stroke=0.5)
+   ggmap(sfMap, extent= "device" ) + scale_fill_brewer(palette = "Dark2") +
+        geom_tile(data = test, aes(x = X, y = Y, fill=category_general, alpha = Probability)) + 
+       scale_alpha(range = c(0, 0.8)) + labs(title=paste("k =", input$k, "Nearest Neighbors")) #+ 
+   # geom_jitter(data=train, aes(x=X, y=Y, fill=category_general), size=3, shape=21, stroke=0.5)
   
-   
+
 })
 ```
 
