@@ -1,0 +1,343 @@
+---
+title: "Final Project"
+author: "Tasheena Narraidoo, Jeffrey Lancaster, Luke Haggerty"
+date: "December 22, 2017"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+    df_print: kable
+---
+
+
+## Load all packages
+
+We have used `tidyverse` and `lubridate` for data cleaning & manipulation and for basic EDA, `ggmap` for additional EDA and `nnet` for our model.
+
+```{r, message=FALSE, warning=FALSE, fig.width=8, fig.height=4.5, echo=FALSE}
+library(tidyverse)
+library(ggmap)
+library(gridExtra)
+library(ggExtra)
+library(viridis)
+library(nnet)
+library(lubridate)
+library(RColorBrewer)
+library(generalhoslem)
+library(MLmetrics)
+#library(car)
+```
+
+
+
+## Load data and perform data cleaning
+
+```{r, message=FALSE, warning=FALSE, fig.width=8, fig.height=4.5, echo=FALSE}
+# Load Data
+#load train data
+#train <- read_csv("data/train.csv")
+#load test data
+#test <- read_csv("data/test.csv")
+```
+
+We are going to create three more variables (`Year`,`Month`, `Hour`) from the given `Dates` variables for EDA purposes.
+
+```{r, eval= FALSE, message=FALSE, warning=FALSE, fig.width=8, fig.height=4.5, echo=FALSE}
+# Data Cleaning
+## Train
+### Extract year, month and hour
+train1 <- train %>% 
+  mutate(formatted_date = strftime(Dates, "%Y-%m-%d %H:%M:%S")) %>% 
+  mutate(Year = year(formatted_date),
+         Month = month(formatted_date),
+         Hour = hour(formatted_date),
+         ID = 1:878049
+  ) 
+
+### Extract Top Five Crimes for visualization
+group_data_category <- train1 %>% 
+  group_by(Category) %>% 
+  summarise(count = n()) 
+
+#### order in descending order
+ordered_data <- group_data_category[order(-group_data_category$count),] 
+top_5 <- ordered_data[1:5,1]
+
+### Group data 
+grouped_train_data <- train1 %>% 
+  group_by(Hour, DayOfWeek, Month, Year)
+
+## Test
+### Extract year, month and hour
+test1 <- test %>% 
+  mutate(formatted_date = strftime(Dates, "%Y-%m-%d %H:%M:%S")) %>% 
+  mutate(Year = year(formatted_date),
+         Month = month(formatted_date),
+         Hour = hour(formatted_date)
+  )
+
+```
+
+## EDA visualizations and tables
+
+Note: If you had to illustrate using no modelling but only graphs and tables which
+variables have the most predictive power, which would you include?
+
+```{r, echo=FALSE}
+# Status: Completed (Just need to upload latest version)
+# Table with variable description
+var_name <- c(names(train[1:9]))
+var_description <- c("timestamp of the crime incident", 
+                     "category of the crime incident", 
+                     "detailed description of the crime incident", 
+                     "the day of the week",
+                     "name of the Police Department District",
+                     "how the crime incident was resolved",
+                     "the approximate street address of the crime incident",
+                     "Longitude",
+                     "Latitude"
+                     )
+tbl <- cbind(var_name,var_description)
+colnames(tbl) <- c("Variable Name", "Variable Description")
+names(dimnames(tbl)) <- list("", "Variable Description")
+tbl %>% knitr::kable(digits=4, caption= "Original Variables with Description")
+```
+
+```{r, echo=FALSE}
+# Overall distribution of crimes
+g1 <- ggplot(ordered_data) +
+  geom_bar(aes(x= reorder(Category, -count), 
+                y=count,
+                color = reorder(Category, -count),
+                fill = reorder(Category, -count)),
+           stat = "identity") +
+  coord_flip()
+
+g1 + ggtitle("Number of crimes in each category") +
+  xlab("Number of crimes") +
+  ylab("Category of crime") + 
+  theme(legend.position="none") 
+```
+
+From the graph above we see that `LARCENY/THEFT` is the Number 1 most reported crime category. The bottom 10 categories seem to have low reported number of incidents. Indeed, the top 10 crime categories accounted for over 83 % of total number of crimes reported and the top 20 crime categories accounted for over 96%. We have therefore decided to concentrate on predicting top crimes when making our model to increase accuracy. Theft seems to be the number 1 crime reported as `LARCENY/THEFT`, `BURGLARY`, `VEHICLE THEFT`, `ROBBERY` are all thefts and they are in our Top 15 crimes reported. We will use this broad categorization to analyze type of crime against the different predictor variables such as the hour crimes were committed, day of week crimes occurred, and area in which crimes were reported using Police Dept District.
+
+```{r, echo=FALSE, eval=FALSE}
+# Checking our variables
+
+top_10 <- ordered_data[1:10,1:2]
+sum(top_10$count)/nrow(train) * 100
+top_20 <- ordered_data[1:20,1:2]
+sum(top_20$count)/nrow(train) * 100
+```
+
+
+```{r, echo=FALSE}
+# Crime distribution by weekday
+
+train4 <- train1 %>% 
+  group_by(DayOfWeek,Year, Month) %>% 
+  summarise(count = n())
+
+
+train4$DayOfWeek = factor(train4$DayOfWeek, levels= c("Monday", 
+    "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday","Sunday"))
+
+g3 <- ggplot(train4, 
+             aes(x=DayOfWeek, y=count,
+                 fill = DayOfWeek)) + 
+  geom_boxplot()
+
+g3 + ggtitle("Crime distribution by weekday") +
+  xlab("weekday") +
+  ylab("Number of crime incidents") +
+  theme(legend.position = "None",plot.title = element_text(hjust = 0.5))
+
+```
+
+From the weekday graph it would seem that Sunday has seen the lowest median of crimes committed. This is probably because most people are at home on Sunday. Friday has the highest median, and this is probably because people are most likely to go out on Fridays.
+
+```{r, echo=FALSE}
+# Crime distribution by Hour
+
+train5 <- train1 %>% 
+  group_by(Hour, Year, Month) %>% 
+  summarise(count = n())
+
+g3 <- ggplot(train5, 
+             aes(x=as.factor(Hour), y=count,
+                 fill = as.factor(Hour))) + 
+  geom_boxplot()
+
+g3 + ggtitle("Crime distribution by hour") +
+  xlab("hour") +
+  ylab("Number of crime incidents") +
+  theme(legend.position = "None",plot.title = element_text(hjust = 0.5))
+
+```
+
+From the hour of the day breakdown we notice that most crimes occur during the day (from 8 am to around 6 pm). This is the time window when people commute to work and are at work. 
+
+```{r, echo=FALSE}
+# Crime distribution by PdDistrict
+
+train6 <- train1 %>% 
+  group_by(PdDistrict, Year, Month) %>% 
+  summarise(count = n())
+
+g3 <- ggplot(train6, 
+             aes(x=as.factor(PdDistrict), y=count,
+                 fill = as.factor(PdDistrict))) + 
+  geom_boxplot()
+
+g3 + ggtitle("Crime distribution by Police District") +
+  xlab("Police District") +
+  ylab("Number of crime incidents") +
+  theme(legend.position = "None", 
+        plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle=45, hjust =1))
+
+```
+
+The Southern District seems to be leading in terms of number of crimes being reported. 
+
+From the above plots, `PdDistrict`, `DayOfWeek` and `Hour` seem to indicate when thefts are highly to occur. Since our broad definition of thefts account for most crimes reported, we believe that these variables would be good indicators of the type of crime likely to have been committed.
+
+## Ultimate model
+
+For our ultimate model, we have decided to use `multinomial logistic regression` because our reponse variable is a categorical outcome variable. We have decided to use `PdDistrict`, `DayOfWeek` and `Hour`
+variables from our EDA. Also, they were all significant variables when we ran our `anova` test.
+
+```{r, echo=FALSE, eval=FALSE}
+train_samp = sample_n(train1, 100000)
+m1 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
+               data = train_samp, maxit = 200)
+
+```
+
+```{r, echo=FALSE, eval=FALSE}
+Anova(m1)
+# Results
+Analysis of Deviance Table (Type II tests)
+
+Response: Category
+           LR Chisq  Df Pr(>Chisq)    
+DayOfWeek    6953.7 228  < 2.2e-16 ***
+PdDistrict  19365.6 342  < 2.2e-16 ***
+Hour         4333.7  38  < 2.2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+```
+
+## Crossvalidation of ultimate model
+
+* Perform a cross-validation on only the final/ultimate model used for your
+submission.
+* The "score" in question should be the same as used to compute the Kaggle
+leaderboard. In other words, your estimated score should be roughly equal to the
+score returned by Kaggle after your submission.
+
+Note: Hardcode your crossvalidation here i.e. do not use built-in crossvalidation
+options.
+
+```{r, message=FALSE, warning=FALSE, fig.width=8, fig.height=4.5, echo=FALSE}
+
+#This is a function that will create a six-fold cross validation with degrees of freedom and the dataset as inputs and return the average Mean Square Error
+
+  validation1 <- train_samp %>%  #first fold
+    sample_n(20000)
+  training1 <- train_samp %>% 
+    anti_join(validation1, by="ID")
+
+  validation2 <- training1 %>% #second fold
+    sample_n(20000)
+  training2prime <- training1 %>% 
+    anti_join(validation2, by="ID")
+  training2 <- training2prime %>%
+    bind_rows(validation1)
+
+  validation3 <- training2prime %>% #third fold
+    sample_n(20000)
+  training3prime <- training2prime %>% 
+    anti_join(validation3, by="ID")
+  training3 <- training3prime %>%
+    bind_rows(validation2)
+  training3 <- training3 %>%
+    bind_rows(validation1)
+
+  validation4 <- training3prime %>% #fourth fold
+    sample_n(20000)
+  training4prime <- training3prime %>% 
+    anti_join(validation4, by="ID")
+  training4 <- training4prime %>%
+    bind_rows(validation3)
+  training4 <- training4 %>%
+    bind_rows(validation2)
+  training4 <- training4 %>%
+    bind_rows(validation1)
+
+
+  validation5 <- training4prime #fifth fold
+  training5 <- training4 %>% 
+    anti_join(validation5, by="ID")
+  training5 <- training5 %>%
+    bind_rows(validation4)
+
+
+  model1 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
+               data = training1, maxit = 200) #first fitted model
+  test_1 <- predict(model1, validation1, probability = TRUE)
+  MultiLogLoss(validation1$Category, attr(test_1, "probabilities"))
+
+  model2 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
+               data = training2, maxit = 200) #second fitted model
+  test_2 <- predict(model2, validation2$Category) %>% as.tibble()
+
+
+  model3 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
+               data = training3, maxit = 200) #third fitted model
+  test3 <- predict(model3, validation3$Category) %>% as.tibble()
+
+
+  model4 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
+               data = training4, maxit = 200) #fourth fitted model
+  test4 <- predict(model4, validation4$Category) %>% as.tibble()
+
+
+  model5 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
+               data = training5, maxit = 200) #fifth fitted model
+  test5 <- predict(model5, validation5$Category) %>% as.tibble()
+
+ 
+```
+
+
+
+## Create submission
+
+On submitting our model on Kaggle, we got a score of around 2.6.
+
+```{r, echo=FALSE, eval=FALSE}
+id <- seq(0,884261)
+predictions <- predict(m1, test1, "probs")
+pred1 <- cbind(id, predictions)
+pred1 <- as.data.frame(pred1)
+write_csv(pred1, path = "data/submission.csv")
+```
+
+
+## Citations and references
+
+Note: All citations and references must be included here.
+
+* Data sets. Retrieved from https://www.kaggle.com/c/sf-crime
+
+* https://www.statmethods.net/management/sorting.html
+
+* Multinomial Logistic Regression. Retrieved from https://stats.idre.ucla.edu/r/dae/multinomial-logistic-regression/
+
+
+
+## Supplementary materials
