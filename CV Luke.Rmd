@@ -28,6 +28,7 @@ library(lubridate)
 library(RColorBrewer)
 library(generalhoslem)
 library(MLmetrics)
+library(ModelMetrics)
 #library(car)
 ```
 
@@ -246,6 +247,7 @@ options.
 
 #This is a function that will create a six-fold cross validation with degrees of freedom and the dataset as inputs and return the average Mean Square Error
 
+
   validation1 <- train_samp %>%  #first fold
     sample_n(20000)
   training1 <- train_samp %>% 
@@ -288,29 +290,32 @@ options.
 
   model1 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
                data = training1, maxit = 200) #first fitted model
-  test_1 <- predict(model1, validation1, probability = TRUE)
-  MultiLogLoss(validation1$Category, attr(test_1, "probabilities"))
+  test_1 <- predict(model1, validation1, type = "probs") %>% data.matrix()
+  mll1<- mlogLoss(validation1$Category, test_1)
 
   model2 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
                data = training2, maxit = 200) #second fitted model
-  test_2 <- predict(model2, validation2$Category) %>% as.tibble()
-
+  test_2 <- predict(model2, validation2, type = "probs") %>% data.matrix()
+  mll2<- mlogLoss(validation2$Category, test_2)
 
   model3 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
                data = training3, maxit = 200) #third fitted model
-  test3 <- predict(model3, validation3$Category) %>% as.tibble()
-
+  test_3 <- predict(model3, validation3, type = "probs") %>% data.matrix()
+  mll3<- mlogLoss(validation3$Category, test_3)
 
   model4 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
                data = training4, maxit = 200) #fourth fitted model
-  test4 <- predict(model4, validation4$Category) %>% as.tibble()
-
+  test_4 <- predict(model4, validation4, type = "probs") %>% data.matrix()
+  mll4<- mlogLoss(validation4$Category, test_4)
 
   model5 <- multinom(Category ~ PdDistrict + DayOfWeek +  Hour, 
                data = training5, maxit = 200) #fifth fitted model
-  test5 <- predict(model5, validation5$Category) %>% as.tibble()
-
+  test_5 <- predict(model5, validation5, type = "probs") %>% data.matrix()
+  mll5<- mlogLoss(validation5$Category, test_5)
  
+  cvscore <- (mll1 + mll2 + mll3 + mll4 + mll5)/5
+  
+  cvscore
 ```
 
 
